@@ -1,0 +1,6 @@
+flask==2.0.1
+playwright==1.14.0
+requests==2.26.0
+minio==7.1.17
+structlog==22.3.0
+gunicorn==20.1.0
