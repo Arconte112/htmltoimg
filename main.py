@@ -38,7 +38,14 @@ def render_html_to_image(html_content: str, output_path: str):
     try:
         logger.info("Launching browser", html_file=html_file)
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            # Log available browsers for debugging
+            logger.info("Available browsers", 
+                       chromium_executable=p.chromium.executable_path if hasattr(p.chromium, 'executable_path') else "unknown")
+            
+            browser = p.chromium.launch(
+                headless=True,
+                args=['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+            )
             context = browser.new_context(
                 viewport={"width": 1080, "height": 1350},
                 device_scale_factor=2
@@ -50,7 +57,8 @@ def render_html_to_image(html_content: str, output_path: str):
             browser.close()
             logger.info("Screenshot completed successfully", output_path=output_path)
     except Exception as e:
-        logger.error("Failed to render HTML to image", error=str(e), html_file=html_file)
+        logger.error("Failed to render HTML to image", error=str(e), html_file=html_file, 
+                    error_type=type(e).__name__)
         raise
     finally:
         if os.path.exists(html_file):

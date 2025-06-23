@@ -50,6 +50,10 @@ RUN apt-get update && apt-get install -y \
     libxss1 \
     fonts-liberation \
     curl \
+    libegl1 \
+    libgl1-mesa-glx \
+    libgstreamer1.0-0 \
+    libgstreamer-plugins-base1.0-0 \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -58,9 +62,6 @@ WORKDIR /app
 # Copy virtual environment from builder stage
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
-
-# Install Playwright browsers
-RUN python -m playwright install chromium --with-deps
 
 # Copy application code
 COPY --chown=appuser:appuser . .
@@ -71,12 +72,15 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV LOG_LEVEL=INFO
 ENV PORT=3323
 
+# Switch to non-root user BEFORE installing Playwright
+USER appuser
+
+# Install Playwright browsers as the appuser (without --with-deps since deps are already installed)
+RUN python -m playwright install chromium
+
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:3323/health || exit 1
-
-# Switch to non-root user
-USER appuser
 
 # Expose the port
 EXPOSE 3323
