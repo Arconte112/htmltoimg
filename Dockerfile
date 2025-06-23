@@ -19,8 +19,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Production stage
 FROM python:3.11-slim
 
-# Create non-root user for security
-RUN groupadd -r appuser && useradd -r -g appuser appuser
+# Create non-root user for security with home directory
+RUN groupadd -r appuser && useradd -r -g appuser -m -d /home/appuser appuser
 
 # Install runtime dependencies for Playwright
 RUN apt-get update && apt-get install -y \
@@ -72,8 +72,15 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV LOG_LEVEL=INFO
 ENV PORT=3323
 
+# Create necessary directories and set permissions
+RUN mkdir -p /home/appuser/.cache && \
+    chown -R appuser:appuser /home/appuser
+
 # Switch to non-root user BEFORE installing Playwright
 USER appuser
+
+# Set Playwright cache directory
+ENV PLAYWRIGHT_BROWSERS_PATH=/home/appuser/.cache/ms-playwright
 
 # Install Playwright browsers as the appuser (without --with-deps since deps are already installed)
 RUN python -m playwright install chromium
