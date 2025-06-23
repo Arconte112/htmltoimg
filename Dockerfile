@@ -62,9 +62,6 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Install Playwright browsers
 RUN python -m playwright install chromium --with-deps
 
-# Install gunicorn for production
-RUN pip install gunicorn
-
 # Copy application code
 COPY --chown=appuser:appuser . .
 
@@ -76,13 +73,13 @@ ENV PORT=3323
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:${PORT}/health || exit 1
+    CMD curl -f http://localhost:3323/health || exit 1
 
 # Switch to non-root user
 USER appuser
 
 # Expose the port
-EXPOSE ${PORT}
+EXPOSE 3323
 
 # Optimized startup command for production
 CMD ["gunicorn", "--bind", "0.0.0.0:3323", "--workers", "2", "--threads", "4", "--worker-class", "gthread", "--timeout", "120", "--preload", "main:app"]

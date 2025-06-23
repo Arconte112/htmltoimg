@@ -135,7 +135,7 @@ def health():
     return jsonify({"status": "healthy", "service": "htmltoimg"})
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 8002))
+    port = int(os.getenv("PORT", 3323))
     logger.info("Starting HTML to Image service", 
                 host="0.0.0.0", port=port, bucket=BUCKET_NAME)
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port, debug=False)
