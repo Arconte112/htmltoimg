@@ -4,3 +4,4 @@ requests==2.31.0
 minio==7.1.17
 structlog==23.1.0
 gunicorn==21.2.0
+Pillow==10.1.0

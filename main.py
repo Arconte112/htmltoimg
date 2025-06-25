@@ -7,6 +7,7 @@ from playwright.sync_api import sync_playwright
 from minio import Minio
 from minio.error import S3Error
 import uuid
+from PIL import Image, ImageOps
 
 structlog.configure(
     processors=[
@@ -75,27 +76,91 @@ MINIO_CLIENT = Minio(
 )
 BUCKET_NAME = "antiguaordenimagenes"
 
-def upload_to_minio(image_path):
-    """Upload image to MinIO and return the URL"""
-    filename = f"image_{uuid.uuid4()}.png"
-    logger.info("Starting MinIO upload", filename=filename, image_path=image_path)
+def compress_image(image_path, quality=85, max_width=1920):
+    """Compress image to reduce file size while maintaining quality"""
+    logger.info("Starting image compression", image_path=image_path, quality=quality, max_width=max_width)
     
     try:
-        # Upload file
+        with Image.open(image_path) as img:
+            # Convert to RGB if necessary (for PNG with transparency)
+            if img.mode in ('RGBA', 'LA', 'P'):
+                background = Image.new('RGB', img.size, (255, 255, 255))
+                if img.mode == 'P':
+                    img = img.convert('RGBA')
+                if img.mode in ('RGBA', 'LA'):
+                    background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+                img = background
+            
+            # Resize if image is too wide
+            if img.width > max_width:
+                ratio = max_width / img.width
+                new_height = int(img.height * ratio)
+                img = img.resize((max_width, new_height), Image.Resampling.LANCZOS)
+                logger.info("Image resized", original_width=img.width, new_width=max_width, new_height=new_height)
+            
+            # Create compressed output path
+            compressed_path = image_path.replace('.png', '_compressed.jpg')
+            
+            # Save with compression
+            img.save(compressed_path, 'JPEG', quality=quality, optimize=True)
+            
+            # Get file sizes for logging
+            original_size = os.path.getsize(image_path)
+            compressed_size = os.path.getsize(compressed_path)
+            compression_ratio = (1 - compressed_size/original_size) * 100
+            
+            logger.info("Image compression completed", 
+                       original_size=original_size, 
+                       compressed_size=compressed_size,
+                       compression_ratio=f"{compression_ratio:.1f}%",
+                       compressed_path=compressed_path)
+            
+            return compressed_path
+            
+    except Exception as e:
+        logger.error("Image compression failed", error=str(e), image_path=image_path)
+        return image_path  # Return original path if compression fails
+
+def upload_to_minio(image_path):
+    """Upload image to MinIO and return the URL"""
+    # Compress image before upload
+    compressed_path = compress_image(image_path)
+    
+    # Determine file extension and content type based on compressed image
+    if compressed_path.endswith('.jpg'):
+        filename = f"image_{uuid.uuid4()}.jpg"
+        content_type = "image/jpeg"
+    else:
+        filename = f"image_{uuid.uuid4()}.png"
+        content_type = "image/png"
+    
+    logger.info("Starting MinIO upload", filename=filename, image_path=compressed_path)
+    
+    try:
+        # Upload compressed file
         MINIO_CLIENT.fput_object(
             BUCKET_NAME,
             filename,
-            image_path,
-            content_type="image/png"
+            compressed_path,
+            content_type=content_type
         )
         
         # Return the public URL
         url = f"https://minio-nwo004cws40gwwkcs8008oog.automatadr.com/{BUCKET_NAME}/{filename}"
         logger.info("MinIO upload successful", filename=filename, url=url)
+        
+        # Clean up compressed file if it's different from original
+        if compressed_path != image_path and os.path.exists(compressed_path):
+            os.remove(compressed_path)
+            logger.debug("Cleaned up compressed file", compressed_path=compressed_path)
+            
         return url
     
     except S3Error as e:
         logger.error("MinIO upload failed", filename=filename, error=str(e))
+        # Clean up compressed file on error
+        if compressed_path != image_path and os.path.exists(compressed_path):
+            os.remove(compressed_path)
         raise Exception(f"MinIO upload failed: {e}")
 
 @app.route("/render", methods=["POST"])
