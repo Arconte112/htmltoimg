@@ -51,7 +51,7 @@ RUN apt-get update && apt-get install -y \
     fonts-liberation \
     curl \
     libegl1 \
-    libgl1-mesa-glx \
+    libgl1 \
     libgstreamer1.0-0 \
     libgstreamer-plugins-base1.0-0 \
     && rm -rf /var/lib/apt/lists/* \
