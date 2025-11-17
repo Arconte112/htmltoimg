@@ -67,24 +67,14 @@ def render_html_to_image(html_content: str, output_path: str):
             logger.debug("Cleaned up temporary HTML file", html_file=html_file)
         
 # Configuración de MinIO
-MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
-MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
-MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
-MINIO_REGION = os.getenv("MINIO_REGION", "us-east-1")
-MINIO_SECURE = os.getenv("MINIO_SECURE", "true").lower() == "true"
-BUCKET_NAME = os.getenv("MINIO_BUCKET")
-
-MINIO_CLIENT = None
-if MINIO_ENDPOINT and MINIO_ACCESS_KEY and MINIO_SECRET_KEY and BUCKET_NAME:
-    MINIO_CLIENT = Minio(
-        MINIO_ENDPOINT,
-        access_key=MINIO_ACCESS_KEY,
-        secret_key=MINIO_SECRET_KEY,
-        region=MINIO_REGION,
-        secure=MINIO_SECURE,
-    )
-else:
-    logger.warning("MinIO credentials are not fully configured; uploads will be disabled.")
+MINIO_CLIENT = Minio(
+    "minio-nwo004cws40gwwkcs8008oog.automatadr.com",
+    access_key="I9BKXRAMi9Pui8XmEyhm",
+    secret_key="7ATtXmegPRlQjyFMnK49b0My65jWzbJNxSuGnoR2",
+    region="us-east-1",
+    secure=True
+)
+BUCKET_NAME = "recorddo"
 
 def compress_image(image_path, quality=85, max_width=1920):
     """Compress image to reduce file size while maintaining quality"""
@@ -133,9 +123,6 @@ def compress_image(image_path, quality=85, max_width=1920):
 
 def upload_to_minio(image_path):
     """Upload image to MinIO and return the URL"""
-    if MINIO_CLIENT is None or not BUCKET_NAME:
-        raise RuntimeError("MinIO is not configured. Set MINIO_* environment variables to enable uploads.")
-
     # Compress image before upload
     compressed_path = compress_image(image_path)
     
@@ -159,13 +146,7 @@ def upload_to_minio(image_path):
         )
         
         # Return the public URL
-        if MINIO_ENDPOINT.startswith("http://") or MINIO_ENDPOINT.startswith("https://"):
-            base_url = MINIO_ENDPOINT
-        else:
-            scheme = "https" if MINIO_SECURE else "http"
-            base_url = f"{scheme}://{MINIO_ENDPOINT}"
-
-        url = f"{base_url.rstrip('/')}/{BUCKET_NAME}/{filename}"
+        url = f"https://minio-nwo004cws40gwwkcs8008oog.automatadr.com/{BUCKET_NAME}/{filename}"
         logger.info("MinIO upload successful", filename=filename, url=url)
         
         # Clean up compressed file if it's different from original

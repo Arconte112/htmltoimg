@@ -1,81 +1,65 @@
-# HTML to IMG Service
+# HTML to Image API with Catbox Upload
 
-Microservicio Flask que renderiza contenido HTML a imágenes PNG/JPG utilizando **Playwright (Chromium)** y almacena los resultados en **MinIO/S3**. Ideal para generar miniaturas de newsletters, vistas previas de landing pages o assets reutilizables.
+This API service converts HTML content to an image and uploads it to catbox.moe, returning the URL of the uploaded image.
 
-## Características
-- Renderizado headless en Chromium a resolución configurable (1080x1350 por defecto).
-- Compresión automática (convertido a JPEG optimizado) con Pillow.
-- Subida a MinIO o cualquier servicio compatible con S3.
-- Logs estructurados con `structlog` para facilitar observabilidad.
-- Healthcheck (`/health`) y Docker multi-stage (imagen ligera).
+## Setup
 
-## Stack tecnológico
-- Python 3.11
-- Flask 3
-- Playwright + Chromium
-- Pillow para compresión
-- MinIO SDK oficial
+1. Install dependencies:
+   ```
+   pip install -r requirements.txt
+   ```
 
-## API
-### `POST /render`
+2. Install Playwright browsers:
+   ```
+   python -m playwright install chromium
+   ```
+
+3. Run the server:
+   ```
+   python main.py
+   ```
+
+The server will start on port 8000.
+
+## API Usage
+
+### Endpoint: `/render`
+
+**Method:** POST
+
+**Content-Type:** application/json
+
+**Request Body:**
 ```json
 {
-  "html": "<html>..."  // Contenido HTML completo
+  "html": "<html>Your HTML content here</html>"
 }
 ```
-**Respuesta**
+
+**Response:**
 ```json
 {
-  "success": true,
-  "url": "https://minio.example.com/bucket/image_xxx.jpg"
+  "url": "https://catbox.moe/c/example.png"
 }
 ```
-En caso de error se devuelve `{"error": "mensaje"}` con código 500.
 
-### `GET /health`
-Devuelve `{"status": "ok"}` cuando el servicio está disponible.
-
-## Configuración
-Cree un archivo `.env` basado en `.env.example`:
-```
-MINIO_ENDPOINT=play.min.io
-MINIO_ACCESS_KEY=your-key
-MINIO_SECRET_KEY=your-secret
-MINIO_REGION=us-east-1
-MINIO_SECURE=true
-MINIO_BUCKET=html-snapshots
-LOG_LEVEL=INFO
+**Error Response:**
+```json
+{
+  "error": "Error message"
+}
 ```
 
-## Ejecución local
+## Example
+
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-python main.py  # Flask se levanta en el puerto 3323 por defecto
+curl -X POST http://localhost:8000/render \
+  -H "Content-Type: application/json" \
+  -d '{"html":"<html><body><h1>Hello World</h1></body></html>"}'
 ```
 
-## Docker
-```bash
-docker build -t htmltoimg-service .
-docker run --rm -p 3323:3323 \
-  -e MINIO_ENDPOINT=... \
-  -e MINIO_ACCESS_KEY=... \
-  -e MINIO_SECRET_KEY=... \
-  -e MINIO_BUCKET=... \
-  htmltoimg-service
-```
-
-## Buenas prácticas
-- Asegúrese de que el bucket exista y tenga políticas de acceso apropiadas.
-- Use HTTPS (`MINIO_SECURE=true`) cuando el endpoint lo permita.
-- Limite el tamaño del HTML recibido (puede agregarse validación previa).
-
-## Roadmap
-- Parámetros opcionales en el request (`width`, `height`, `format`).
-- Cache local de resultados (e.g. Redis) para HTML repetido.
-- Firma de URLs con expiración segura.
-
-## Licencia
-Proyecto bajo licencia **MIT**.
+Response:
+```json
+{
+  "url": "https://catbox.moe/c/abcdef.png"
+}
