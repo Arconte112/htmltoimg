@@ -3,7 +3,7 @@ import tempfile
 import logging
 import structlog
 from flask import Flask, request, jsonify
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 from minio import Minio
 from minio.error import S3Error
 import uuid
@@ -42,7 +42,7 @@ def render_html_to_image(html_content: str, output_path: str):
             # Log available browsers for debugging
             logger.info("Available browsers", 
                        chromium_executable=p.chromium.executable_path if hasattr(p.chromium, 'executable_path') else "unknown")
-            
+
             browser = p.chromium.launch(
                 headless=True,
                 args=['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
@@ -52,10 +52,56 @@ def render_html_to_image(html_content: str, output_path: str):
                 device_scale_factor=2
             )
             page = context.new_page()
-            page.goto(f"file://{html_file}", wait_until="networkidle")
-            page.wait_for_timeout(2000)  # Wait 2 seconds for images to load
+
+            failed_requests = []
+
+            def _on_request_failed(req):
+                if req.resource_type in {"image", "media", "stylesheet"}:
+                    failed_requests.append({"url": req.url, "error": req.failure})
+            page.on("requestfailed", _on_request_failed)
+
+            page.goto(f"file://{html_file}", wait_until="domcontentloaded")
+            # Wait until all <img> and CSS background images have either loaded or errored
+            wait_for_images_script = r"""
+                () => {
+                    const urls = new Set();
+                    // collect <img> sources
+                    for (const img of Array.from(document.images)) {
+                        if (img.src) urls.add(img.src);
+                    }
+                    // collect background-image urls
+                    for (const el of Array.from(document.querySelectorAll('*'))) {
+                        const bg = getComputedStyle(el).backgroundImage;
+                        if (!bg || bg === 'none') continue;
+                        const matches = bg.match(/url\(\"?'?([^\"')]+)\"?'?\)/g) || [];
+                        for (const m of matches) {
+                            const url = m.replace(/url\(\"?'?/, '').replace(/\"?'?\)/, '');
+                            if (url) urls.add(url);
+                        }
+                    }
+                    if (urls.size === 0) return true;
+                    return Promise.all(Array.from(urls).map(u => new Promise(res => {
+                        const img = new Image();
+                        img.onload = () => res(true);
+                        img.onerror = () => res(true);
+                        img.src = u;
+                    })));
+                }
+            """
+            try:
+                page.wait_for_function(wait_for_images_script, timeout=10000)
+            except PlaywrightTimeoutError:
+                logger.warning("Timed out waiting for images to load completely", html_file=html_file)
+
+            # Small extra buffer for big assets
+            page.wait_for_timeout(1000)
+
             page.screenshot(path=output_path, full_page=False)
             browser.close()
+
+            if failed_requests:
+                logger.warning("Some resources failed to load", failed_requests=failed_requests[:5])
+
             logger.info("Screenshot completed successfully", output_path=output_path)
     except Exception as e:
         logger.error("Failed to render HTML to image", error=str(e), html_file=html_file, 
