@@ -1,65 +1,54 @@
-# HTML to Image API with Catbox Upload
+# htmltoimg
 
-This API service converts HTML content to an image and uploads it to catbox.moe, returning the URL of the uploaded image.
+htmltoimg is a Flask microservice that receives HTML, renders it with Playwright/Chromium, optimizes the resulting image and returns a hosted image URL through an object storage pipeline.
 
-## Setup
+![htmltoimg portfolio cover](docs/cover.jpg)
 
-1. Install dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
+Portfolio cover generated for presentation. Runtime screenshot:
 
-2. Install Playwright browsers:
-   ```
-   python -m playwright install chromium
-   ```
+![htmltoimg screenshot](docs/screenshot.png)
 
-3. Run the server:
-   ```
-   python main.py
-   ```
+## What it demonstrates
 
-The server will start on port 8000.
+- API service for converting arbitrary HTML into image snapshots.
+- Headless Chromium rendering with controlled viewport and resource loading.
+- Image compression with Pillow.
+- Object storage upload flow for generated assets.
+- Health endpoint and structured JSON logging for operational visibility.
 
-## API Usage
+## Stack
 
-### Endpoint: `/render`
+- Python
+- Flask
+- Playwright
+- Pillow
+- MinIO/S3-compatible storage
+- structlog
 
-**Method:** POST
-
-**Content-Type:** application/json
-
-**Request Body:**
-```json
-{
-  "html": "<html>Your HTML content here</html>"
-}
-```
-
-**Response:**
-```json
-{
-  "url": "https://catbox.moe/c/example.png"
-}
-```
-
-**Error Response:**
-```json
-{
-  "error": "Error message"
-}
-```
-
-## Example
+## Run locally
 
 ```bash
-curl -X POST http://localhost:8000/render \
-  -H "Content-Type: application/json" \
-  -d '{"html":"<html><body><h1>Hello World</h1></body></html>"}'
+pip install -r requirements.txt
+python -m playwright install chromium
+python main.py
 ```
 
-Response:
-```json
-{
-  "url": "https://catbox.moe/c/abcdef.png"
-}
+The service starts on port `3323` by default.
+
+## API
+
+Health check:
+
+```bash
+curl http://localhost:3323/health
+```
+
+Render HTML:
+
+```bash
+curl -X POST http://localhost:3323/render \
+  -H "Content-Type: application/json" \
+  -d "{\"html\":\"<html><body><h1>Hello</h1></body></html>\"}"
+```
+
+The response returns a JSON payload with the generated image URL.
